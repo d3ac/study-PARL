@@ -6,13 +6,13 @@ class Agent(parl.Agent):
     def __init__(self, algorithm):
         super(Agent, self).__init__(algorithm) # 这一句话是必须要的
     
-    def sample(self, obs):
+    def sample(self, obs): # 根据环境返回动作, 用于训练
         obs = torch.tensor(obs).to(torch.device('cuda:0'))
         prob = self.alg.predict(obs).cpu().detach().numpy()
         act = np.random.choice(len(prob), 1, p=prob)[0]
         return act
     
-    def predict(self, obs):
+    def predict(self, obs): # 根据环境返回预测动作, 用于评估和部署agent
         obs = torch.tensor(obs).to(torch.device('cuda:0'))
         prob = self.alg.predict(obs).cpu().detach().numpy()
         act = np.argmax(prob)
