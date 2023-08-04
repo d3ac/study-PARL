@@ -1,38 +1,73 @@
 import parl
 import torch
 import numpy as np
+from parl.utils.scheduler import LinearDecayScheduler
+
 
 class Agent(parl.Agent):
-    """
-    负责与环境交互, 将数据传给Algorithm来更新Model
-    """
-    def __init__(self, algorithm):
-        super(Agent, self).__init__(algorithm) # 这一句话是必须要的
-    
-    def sample(self, obs): # 根据环境返回动作, 用于训练
-        obs = torch.tensor(obs).to(torch.device('cuda:0'))
-        prob = self.alg.predict(obs).cpu().detach().numpy()
-        act = np.random.choice(len(prob), 1, p=prob)[0]
-        return act
-    
-    def predict(self, obs): # 根据环境返回预测动作, 用于评估和部署agent
-        obs = torch.tensor(obs).to(torch.device('cuda:0'))
-        prob = self.alg.predict(obs).cpu().detach().numpy()
-        act = np.argmax(prob)
-        return int(act)
-    
-    def learn(self, obs, act, reward):
-        obs = torch.tensor(obs).to(torch.device('cuda:0'))
-        act = torch.tensor(act).to(torch.device('cuda:0'))
+    def __init__(self, algorithm, config):
+        super(Agent, self).__init__(algorithm)
+        self.config = config
+        if self.config['lr_decay']:
+            self.lr_scheduler = LinearDecayScheduler(self.config['initial_lr'], self.config['num_updates'])
 
-        running_add = 0
-        discounted_reward = np.zeros_like(reward)
-        for t in reversed(range(0, len(reward))):
-            running_add = running_add * 0.95 + reward[t]
-            discounted_reward[t] = running_add
-        discounted_reward = (discounted_reward - np.mean(discounted_reward)) / np.std(discounted_reward)
+    def predict(self, obs):
+        obs = torch.tensor(obs).unsqueeze(0) #! 瞅瞅
+        action = self.alg.predict(obs)
+        return action.detach().numpy()[0] #! 瞅瞅
+    
+    def sample(self, obs):
+        obs = torch.tensor(obs)
+        value, action, action_log_probs, action_entropy = self.alg.sample(obs)
+        value = value.detach().numpy()
+        action = action.detach().numpy()[0]
+        action_log_probs = action_log_probs.detach().numpy()[0]
+        action_entropy = action_entropy.detach().numpy()
+        return value, action, action_log_probs, action_entropy
+    
+    def value(self, obs):
+        obs = torch.tensor(obs)
+        value = self.alg.value(obs)
+        return value.detach().numpy()
+    
+    def learn(self, rollout):
+        # loss
+        value_loss_epoch = 0
+        action_loss_epoch = 0
+        entropy_loss_epoch = 0
+        # lr
+        if self.config['lr_decay']:
+            lr = self.lr_scheduler.step(step_num=1)
+        else:
+            lr = None
+        # update
+        minibatch_size = self.config['batch_size'] // self.config['num_mini_batch'] 
+        # num_mini_batch 决定了每次将数据分成几个小批次, batch_size 就是 step_nums (每次更新时采样多少个样本)
+        indexes = np.arange(self.config['batch_size'])
 
-        reward = torch.tensor(discounted_reward, dtype=torch.float32).to(torch.device('cuda:0'))
+        for epoch in range(self.config['update_epochs']): # 每次使用数据更新的次数
+            np.random.shuffle(indexes) # 打乱顺序, 保证每次更新的数据不同
+            for start in range(0, self.config['batch_size'], minibatch_size): # 注意步长
+                end = start + minibatch_size
+                sample_idx = indexes[start:end]
 
-        loss = self.alg.learn(obs, act, reward)
-        return float(loss)
+                batch_obs, batch_action, batch_log_prob, batch_adv, batch_return, batch_value = rollout.sample_batch(sample_idx)
+
+                batch_obs = torch.tensor(batch_obs)
+                batch_action = torch.tensor(batch_action)
+                batch_log_prob = torch.tensor(batch_log_prob)
+                batch_adv = torch.tensor(batch_adv)
+                batch_return = torch.tensor(batch_return)
+                batch_value = torch.tensor(batch_value)
+
+                value_loss, action_loss, entropy_loss = self.alg.learn(batch_obs, batch_action, batch_value, batch_return, batch_log_prob, batch_adv, lr)
+                
+                value_loss_epoch += value_loss
+                action_loss_epoch += action_loss
+                entropy_loss_epoch += entropy_loss
+        update_steps = self.config['update_epochs'] * self.config['batch_size']
+        value_loss_epoch /= update_steps
+        action_loss_epoch /= update_steps
+        entropy_loss_epoch /= update_steps
+
+        return value_loss_epoch, action_loss_epoch, entropy_loss_epoch, lr
