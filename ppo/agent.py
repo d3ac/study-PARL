@@ -14,21 +14,21 @@ class Agent(parl.Agent):
     def predict(self, obs):
         obs = torch.tensor(obs).unsqueeze(0) #! 瞅瞅
         action = self.alg.predict(obs)
-        return action.detach().numpy()[0] #! 瞅瞅
+        return action.cpu().detach().numpy()[0][0] #! 瞅瞅
     
     def sample(self, obs):
         obs = torch.tensor(obs)
         value, action, action_log_probs, action_entropy = self.alg.sample(obs)
-        value = value.detach().numpy()
-        action = action.detach().numpy()[0]
-        action_log_probs = action_log_probs.detach().numpy()[0]
-        action_entropy = action_entropy.detach().numpy()
+        value = value.cpu().detach().numpy()
+        action = action.cpu().detach().numpy() #[0]
+        action_log_probs = action_log_probs.cpu().detach().numpy() #[0]
+        action_entropy = action_entropy.cpu().detach().numpy()
         return value, action, action_log_probs, action_entropy
     
     def value(self, obs):
         obs = torch.tensor(obs)
         value = self.alg.value(obs)
-        return value.detach().numpy()
+        return value.cpu().detach().numpy()
     
     def learn(self, rollout):
         # loss
@@ -41,7 +41,7 @@ class Agent(parl.Agent):
         else:
             lr = None
         # update
-        minibatch_size = self.config['batch_size'] // self.config['num_mini_batch'] 
+        minibatch_size = self.config['batch_size'] // self.config['num_minibatches'] 
         # num_mini_batch 决定了每次将数据分成几个小批次, batch_size 就是 step_nums (每次更新时采样多少个样本)
         indexes = np.arange(self.config['batch_size'])
 
@@ -53,12 +53,12 @@ class Agent(parl.Agent):
 
                 batch_obs, batch_action, batch_log_prob, batch_adv, batch_return, batch_value = rollout.sample_batch(sample_idx)
 
-                batch_obs = torch.tensor(batch_obs)
-                batch_action = torch.tensor(batch_action)
-                batch_log_prob = torch.tensor(batch_log_prob)
-                batch_adv = torch.tensor(batch_adv)
-                batch_return = torch.tensor(batch_return)
-                batch_value = torch.tensor(batch_value)
+                batch_obs = torch.tensor(batch_obs).to(torch.device('cuda'))
+                batch_action = torch.tensor(batch_action).to(torch.device('cuda'))
+                batch_log_prob = torch.tensor(batch_log_prob).to(torch.device('cuda'))
+                batch_adv = torch.tensor(batch_adv).to(torch.device('cuda'))
+                batch_return = torch.tensor(batch_return).to(torch.device('cuda'))
+                batch_value = torch.tensor(batch_value).to(torch.device('cuda'))
 
                 value_loss, action_loss, entropy_loss = self.alg.learn(batch_obs, batch_action, batch_value, batch_return, batch_log_prob, batch_adv, lr)
                 

@@ -17,6 +17,7 @@ class AtariModel(parl.Model):
         self.fc_v = nn.Linear(512, 1)
     
     def value(self, obs):
+        obs = obs.to(torch.device('cuda'))
         obs = obs / 255.0
         obs = F.relu(self.conv1(obs))
         obs = F.relu(self.conv2(obs))
@@ -28,6 +29,7 @@ class AtariModel(parl.Model):
         return v
     
     def policy(self, obs):
+        obs = obs.to(torch.device('cuda'))
         obs = obs / 255.0
         obs = F.relu(self.conv1(obs))
         obs = F.relu(self.conv2(obs))

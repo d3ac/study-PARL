@@ -63,7 +63,7 @@ def main():
             value, action, log_prob, _ = agent.sample(obs)
             next_obs, reward, next_done, info = envs.step(action)
             rollout.append(obs, action, log_prob, reward, done, value.flatten())
-            obs , done = next_obs, [next_done[i] or done[i] for i in len(done)]
+            obs, done = next_obs, next_done
             # 输出训练信息
             for k in range(config['env_num']):
                 if done[k] and "episode" in info[k].keys():
