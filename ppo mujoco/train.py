@@ -7,9 +7,9 @@ import numpy as np
 from parl.utils import logger, summary
 import argparse
 
-from atari_config import atari_config
+from mujoco_config import mujoco_config
 from env_utils import ParallelEnv, LocalEnv
-from atari_model import AtariModel
+from mujoco_model import MujocoModel
 from agent import Agent
 from storage import RolloutStorage
 
@@ -29,7 +29,7 @@ def run_evaluate_episodes(agent, eval_env, eval_episodes):
 
 def main():
     # config
-    config = atari_config # 离散动作空间
+    config = mujoco_config # 离散动作空间
     if args.env_num:
         config['env_num'] = args.env_num
     config['env'] = args.env
@@ -44,7 +44,7 @@ def main():
     obs_space = eval_env.obs_space
     act_space = eval_env.act_space
     # model
-    model = AtariModel(obs_space, act_space)
+    model = MujocoModel(obs_space, act_space)
     ppo = parl.algorithms.PPO(
         model, clip_param=config['clip_param'], entropy_coef=config['entropy_coef'],
         initial_lr=config['initial_lr'], continuous_action=config['continuous_action']
@@ -92,10 +92,11 @@ def main():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='PongNoFrameskip-v4')
+    parser.add_argument('--env', type=str, default='HalfCheetah-v4')
+    parser.add_argument('--continuous_action', type=bool, default=True)
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--env_num', type=int, default=None)
-    parser.add_argument('--train_total_steps', type=int, default=int(1e7))
+    parser.add_argument('--train_total_steps', type=int, default=int(1000000))
     parser.add_argument('--test_every_steps', type=int, default=int(5e3))
     args = parser.parse_args()
     main()
