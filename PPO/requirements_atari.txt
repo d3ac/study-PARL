@@ -1,5 +1,0 @@
-gym==0.18.0
-paddlepaddle>=2.0.0
-parl>=2.1.1
-atari-py==0.2.6
-opencv-python
