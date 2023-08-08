@@ -13,7 +13,6 @@ from atari_model import AtariModel
 from agent import Agent
 from storage import RolloutStorage
 
-
 def run_evaluate_episodes(agent, eval_env, eval_episodes):
     eval_episode_rewards = []
     while len(eval_episode_rewards) < eval_episodes:
